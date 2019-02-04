@@ -8,11 +8,11 @@ import {
     Tags,
     Value,
 } from "@atomist/automation-client";
+import {fetchCommitForSdmGoal, SdmGoalEvent} from "@atomist/sdm";
 import * as k8 from "kubernetes-client";
 import {getKubeConfig, KubeDeploymentRequest, validateApplication} from "../k8";
 import {SdmGoalSub} from "../typings/types";
 import {CommitForSdmGoal} from "./KubeDeploy";
-import {fetchCommitForSdmGoal, SdmGoalEvent} from "@atomist/sdm";
 
 @EventHandler("get status of k8 cluster", GraphQL.subscription("SdmGoalSub"))
 @Tags("status", "kubernetes")
@@ -61,3 +61,4 @@ export class KubeStatus implements HandleEvent<SdmGoalSub.Subscription> {
             .then(results => reduceResults(results));
 
     }
+}

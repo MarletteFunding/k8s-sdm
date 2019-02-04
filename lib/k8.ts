@@ -765,12 +765,12 @@ function deleteIngress(req: KubeDeleteResourceRequest): Promise<void> {
  * Get the status of a k8 deployment
  * @param req Kubernetes application
  */
-function validateDeployment(req: KubeDeploymentResourceRequest, image: string): Promise<boolean> {
-    // const slug = `${req.ns}/${req.name}`;
-    return req.ext.namespaces(req.ns).deployments(req.name).get()
-        .then(dep => {
-            return image === dep.spec.template.spec.containers.imageName
-        });
+function validateDeployment(req: KubeDeploymentResourceRequest, image: string): Promise<boolean | void> {
+    const slug = `${req.ns}/${req.name}`;
+    return retryP(() =>
+            req.ext.namespaces(req.ns).deployments(req.name).get()
+                .then(dep => image === dep.spec.template.containers.imageName),
+        `validate deployment ${slug}`);
 }
 
 const creator = `atomist.k8-automation`;
@@ -1186,7 +1186,7 @@ function retryP<T>(
     k: () => Promise<T>,
     desc: string,
     options = defaultRetryOptions,
-): Promise<T | void> {
+): Promise<T | void | boolean> {
 
     return promiseRetry(defaultRetryOptions, (retry, count) => {
         logger.debug(`Retry ${desc} attempt ${count}`);
