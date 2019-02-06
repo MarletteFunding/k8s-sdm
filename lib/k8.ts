@@ -25,7 +25,7 @@ import * as _ from "lodash";
 import * as path from "path";
 import promiseRetry = require("promise-retry");
 
-import { preErrMsg } from "./error";
+import {preErrMsg} from "./error";
 
 /**
  * Get Kubernetes configuration either from the creds directory or the
@@ -79,7 +79,7 @@ function getKubeClients(config: k8.ClusterConfiguration | k8.ClientConfiguration
     const core = new k8.Core(config);
     const ext = new k8.Extensions(config);
     const apps = new k8.Apps(config);
-    return { core, ext, apps };
+    return {core, ext, apps};
 }
 
 /**
@@ -150,6 +150,10 @@ export interface KubeApplication {
  */
 export type KubeDelete = Pick<KubeApplication, "name" | "ns" | "path" | "host">;
 
+export type KubeDeployment = Pick<KubeApplication, "name" | "ns">;
+
+export type KubeDeploymentRequest = KubeConfig & KubeDeployment;
+
 /**
  * Information needed to create an application in a Kubernetes
  * cluster.
@@ -174,6 +178,8 @@ type KubeResourceRequest = KubeClients & KubeApplication;
  */
 type KubeDeleteResourceRequest = KubeClients & KubeDelete;
 
+type KubeDeploymentResourceRequest = KubeClients & KubeDeploymentRequest;
+
 function reqFilter<T>(k: string, v: T): T {
     if (k === "config" || k === "core" || k === "ext") {
         return undefined;
@@ -191,7 +197,7 @@ function reqFilter<T>(k: string, v: T): T {
 export function upsertApplication(upReq: KubeApplicationRequest): Promise<void> {
 
     const clients = getKubeClients(upReq.config);
-    const req = { ...upReq, ...clients };
+    const req = {...upReq, ...clients};
     const reqStr = stringify(req, reqFilter);
 
     return upsertNamespace(req)
@@ -199,6 +205,25 @@ export function upsertApplication(upReq: KubeApplicationRequest): Promise<void> 
         .then(() => upsertDeployment(req))
         .then(() => upsertIngress(req))
         .catch(e => Promise.reject(preErrMsg(e, `upserting '${reqStr}' failed`)));
+}
+
+export function validateApplication(valReq: KubeDeploymentRequest, image: string): Promise<void> {
+    const clients = getKubeClients(valReq.config);
+    const req = {...valReq, ...clients};
+    const reqStr = stringify(req, reqFilter);
+    const slug = `${req.ns}/${req.name}`;
+
+    const errs: Error[] = [];
+    return validateDeployment(req, image)
+        .catch(e => errs.push(preErrMsg(e, `failed to validate deployment ${slug}`)))
+        .then(() => {
+            if (errs.length > 0) {
+                const msg = `Failed to validate application '${reqStr}': ${errs.map(e => e.message).join("; ")}`;
+                logger.error(msg);
+                return Promise.reject(new Error(msg));
+            }
+            return Promise.resolve();
+        });
 }
 
 /**
@@ -210,7 +235,7 @@ export function upsertApplication(upReq: KubeApplicationRequest): Promise<void> 
  */
 export function deleteApplication(delReq: KubeDeleteRequest): Promise<void> {
     const clients = getKubeClients(delReq.config);
-    const req = { ...delReq, ...clients };
+    const req = {...delReq, ...clients};
     const reqStr = stringify(req, reqFilter);
     const slug = `${req.ns}/${req.name}`;
 
@@ -569,7 +594,7 @@ function upsertNamespace(req: KubeResourceRequest): Promise<void> {
             logger.debug(`Failed to get namespace ${req.ns}, creating: ${e.message}`);
             const ns: Namespace = namespaceTemplate(req);
             logger.debug(`Creating namespace ${req.ns} using '${stringify(ns)}'`);
-            return retryP(() => req.core.namespaces.post({ body: ns }), `create namespace ${req.ns}`);
+            return retryP(() => req.core.namespaces.post({body: ns}), `create namespace ${req.ns}`);
         });
 }
 
@@ -596,7 +621,7 @@ function upsertService(req: KubeResourceRequest): Promise<void> {
                 return Promise.reject(e);
             }
             logger.debug(`Creating service ${slug} using '${stringify(svc)}'`);
-            return retryP(() => req.core.namespaces(req.ns).services.post({ body: svc }), `create service ${slug}`);
+            return retryP(() => req.core.namespaces(req.ns).services.post({body: svc}), `create service ${slug}`);
         });
 }
 
@@ -617,7 +642,7 @@ function upsertDeployment(req: KubeResourceRequest): Promise<void> {
                 return Promise.reject(e);
             }
             logger.debug(`Updating deployment ${slug} using '${stringify(patch)}'`);
-            return retryP(() => req.ext.namespaces(req.ns).deployments(req.name).patch({ body: patch }),
+            return retryP(() => req.ext.namespaces(req.ns).deployments(req.name).patch({body: patch}),
                 `patch deployment ${slug}`);
         }, e => {
             logger.debug(`Failed to get deployment ${slug}, creating: ${e.message}`);
@@ -629,7 +654,7 @@ function upsertDeployment(req: KubeResourceRequest): Promise<void> {
                 return Promise.reject(e);
             }
             logger.debug(`Creating deployment ${slug} using '${stringify(dep)}'`);
-            return retryP(() => req.ext.namespaces(req.ns).deployments.post({ body: dep }),
+            return retryP(() => req.ext.namespaces(req.ns).deployments.post({body: dep}),
                 `create deployment ${slug}`);
         });
 }
@@ -660,13 +685,13 @@ function upsertIngress(req: KubeResourceRequest): Promise<void> {
                 return Promise.resolve();
             }
             logger.debug(`Updating ingress ${ingressName} for ${slug} using '${stringify(patch)}'`);
-            return retryP(() => req.ext.namespaces(req.ns).ingresses(ingressName).patch({ body: patch }),
+            return retryP(() => req.ext.namespaces(req.ns).ingresses(ingressName).patch({body: patch}),
                 `patch ingress ${req.ns}/${ingressName} for ${slug}`);
         }, e => {
             logger.debug(`Failed to get ingress ${req.ns}/${ingressName}, creating: ${e.message}`);
             const ing = ingressTemplate(req);
             logger.debug(`Creating ingress ${ingressName} for ${slug} using '${stringify(ing)}'`);
-            return retryP(() => req.ext.namespaces(req.ns).ingresses.post({ body: ing }),
+            return retryP(() => req.ext.namespaces(req.ns).ingresses.post({body: ing}),
                 `create ingress ${req.ns}/${ingressName} for ${slug}`);
         });
 }
@@ -695,8 +720,8 @@ function deleteDeployment(req: KubeDeleteResourceRequest): Promise<void> {
     const slug = `${req.ns}/${req.name}`;
     return req.ext.namespaces(req.ns).deployments(req.name).get()
         .then(() => {
-            const body = { propagationPolicy: "Background" };
-            return retryP(() => req.ext.namespaces(req.ns).deployments(req.name).delete({ body }),
+            const body = {propagationPolicy: "Background"};
+            return retryP(() => req.ext.namespaces(req.ns).deployments(req.name).delete({body}),
                 `delete deployment ${slug}`);
         }, e => logger.debug(`Deployment ${slug} does not exist: ${e.message}`));
 }
@@ -731,9 +756,21 @@ function deleteIngress(req: KubeDeleteResourceRequest): Promise<void> {
                 return retryP(() => req.ext.namespaces(req.ns).ingresses(ingressName).delete({}),
                     "delete ingress");
             }
-            return retryP(() => req.ext.namespaces(req.ns).ingresses(ingressName).patch({ body: patch }),
+            return retryP(() => req.ext.namespaces(req.ns).ingresses(ingressName).patch({body: patch}),
                 "remove path from ingress");
         }, e => logger.debug(`Ingress ${req.ns}/${ingressName} does not exist: ${e.message}`));
+}
+
+/**
+ * Get the status of a k8 deployment
+ * @param req Kubernetes application
+ */
+function validateDeployment(req: KubeDeploymentResourceRequest, image: string): Promise<boolean | void> {
+    const slug = `${req.ns}/${req.name}`;
+    return retryP(() =>
+            req.ext.namespaces(req.ns).deployments(req.name).get()
+                .then(dep => image === dep.spec.template.containers.imageName),
+        `validate deployment ${slug}`);
 }
 
 const creator = `atomist.k8-automation`;
@@ -893,7 +930,7 @@ export function deploymentTemplate(req: KubeApplication): Deployment {
         d.spec.template.spec.containers[0].livenessProbe = probe;
     }
     if (req.imagePullSecret) {
-        d.spec.template.spec.imagePullSecrets = [{ name: req.imagePullSecret }];
+        d.spec.template.spec.imagePullSecrets = [{name: req.imagePullSecret}];
     }
     if (req.deploymentSpec) {
         try {
@@ -1072,7 +1109,7 @@ export function ingressPatch(ing: Ingress, req: KubeApplication): Partial<Ingres
         rule.http.paths = paths;
         rules[ruleIndex] = rule;
     }
-    const patch: Partial<Ingress> = { spec: { rules } };
+    const patch: Partial<Ingress> = {spec: {rules}};
     if (req.tlsSecret) {
         const tls = (ing && ing.spec && ing.spec.tls) ? ing.spec.tls : [];
         const tlsIndex = tls.findIndex(t => t.secretName === req.tlsSecret);
@@ -1130,7 +1167,7 @@ export function ingressRemove(ing: Ingress, req: KubeDelete): Partial<Ingress> {
     if (rules[ruleIndex].http.paths.length < 1) {
         rules.splice(ruleIndex, 1);
     }
-    const patch: Partial<Ingress> = { spec: { rules } };
+    const patch: Partial<Ingress> = {spec: {rules}};
     return patch;
 }
 
@@ -1149,7 +1186,7 @@ function retryP<T>(
     k: () => Promise<T>,
     desc: string,
     options = defaultRetryOptions,
-): Promise<T | void> {
+): Promise<T | void | boolean> {
 
     return promiseRetry(defaultRetryOptions, (retry, count) => {
         logger.debug(`Retry ${desc} attempt ${count}`);
