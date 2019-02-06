@@ -21,7 +21,8 @@
         "noImplicitReturns": true,
         "noUnusedLocals": true,
         "experimentalDecorators": true,
-        "emitDecoratorMetadata": true
+        "emitDecoratorMetadata": true,
+        "noImplicitAny": false,
     },
     "exclude": [
         "assets",

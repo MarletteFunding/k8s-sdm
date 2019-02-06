@@ -15,8 +15,8 @@ import {SdmGoalSub} from "../typings/types";
 import {CommitForSdmGoal} from "./KubeDeploy";
 
 @EventHandler("get status of k8 cluster", GraphQL.subscription("SdmGoalSub"))
-@Tags("status", "kubernetes")
-export class KubeStatus implements HandleEvent<SdmGoalSub.Subscription> {
+@Tags("validate", "kubernetes")
+export class KubeValidate implements HandleEvent<SdmGoalSub.Subscription> {
     @Value({
         path: "kubernetes.name",
         required: true,
