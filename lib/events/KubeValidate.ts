@@ -4,7 +4,7 @@ import {
     GraphQL,
     HandleEvent,
     HandlerContext,
-    HandlerResult, reduceResults, Success,
+    HandlerResult, logger, reduceResults, safeExec, Success,
     Tags,
     Value,
 } from "@atomist/automation-client";
@@ -60,5 +60,21 @@ export class KubeValidate implements HandleEvent<SdmGoalSub.Subscription> {
         }))
             .then(results => reduceResults(results));
 
+    }
+}
+
+export async function executeKubeCtlRollback() {
+    try {
+        const kubeCtlResult = await safeExec("kubectl", ["rollout", "history", "test/test"]);
+        const description = `command executed successfully.
+        Stdout: ${kubeCtlResult.stdout}
+        Stderr: ${kubeCtlResult.stderr}`;
+        logger.info(description);
+    } catch (e) {
+        if (e.error) {
+            throw e;
+        }
+        const description = `Exit code: ${e.status}, stderr: ${e.stderr}`;
+        logger.error(description);
     }
 }

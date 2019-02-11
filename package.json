@@ -22,7 +22,7 @@
   "dependencies": {
     "@atomist/automation-client": "1.0.0-master.20181006002158",
     "@atomist/automation-client-ext-logzio": "1.0.0-master.20180926175305",
-    "@atomist/sdm": "1.0.0-master.20181007193107",
+    "@atomist/sdm": "^1.2.0",
     "@types/app-root-path": "^1.2.4",
     "@types/json-stringify-safe": "^5.0.0",
     "@types/lodash": "^4.14.116",

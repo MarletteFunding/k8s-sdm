@@ -15,7 +15,7 @@
  */
 
 import {
-    logger,
+    logger, safeExec,
     webhookBaseUrl,
 } from "@atomist/automation-client";
 import * as appRoot from "app-root-path";
@@ -226,6 +226,9 @@ export function validateApplication(valReq: KubeDeploymentRequest, image: string
         });
 }
 
+export function rollbackApplication(image: string): Promise<void> {
+    return rollbackDeployment(image);
+}
 /**
  * Delete an application from a kubernetes cluster.  If any resource
  * requested to be deleted does not exist, it is logged but no error
@@ -771,6 +774,24 @@ function validateDeployment(req: KubeDeploymentResourceRequest, image: string): 
             req.ext.namespaces(req.ns).deployments(req.name).get()
                 .then(dep => image === dep.spec.template.containers.imageName),
         `validate deployment ${slug}`);
+}
+
+async function rollbackDeployment(image: string): Promise<void> {
+    try {
+        const kubeCtlResult = await safeExec("kubectl", ["rollout", "undo", image]);
+        const description = `command executed successfully.
+        Stdout: ${kubeCtlResult.stdout}
+        Stderr: ${kubeCtlResult.stderr}`;
+        logger.info(description);
+        return Promise.resolve();
+    } catch (e) {
+        if (e.error) {
+            throw e;
+        }
+        const description = `Exit code: ${e.status}, stderr: ${e.stderr}`;
+        logger.error(description);
+        return Promise.reject();
+    }
 }
 
 const creator = `atomist.k8-automation`;
